@@ -7,8 +7,8 @@ type Consumer struct {
 	ProjectID           uint
 	Name                string
 	Email               string
-	IsFirstTime         bool
-	IsWalletActivated   bool
+	IsFirstTime         bool `gorm:"default:true"`
+	IsWalletActivated   bool `gorm:"default:false"`
 	WalletGKey          string
 	WalletEncryptedSKey string
 }

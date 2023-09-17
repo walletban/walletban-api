@@ -13,7 +13,7 @@ type User struct {
 	Email       string `gorm:"unique;not null"`
 	PfpUrl      string
 	Project     Project
-	IsFirstTime bool
+	IsFirstTime bool `gorm:"default:true"`
 }
 
 func (u User) GetSignedJWT() string {

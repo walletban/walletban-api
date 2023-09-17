@@ -22,8 +22,10 @@ func JwtMiddleware() fiber.Handler {
 			claims := user.Claims.(jwt.MapClaims)
 			username := claims["username"].(string)
 			uid := claims["uid"].(float64)
+			pid := claims["pid"].(float64)
 			ctx.Locals("username", username)
 			ctx.Locals("uid", uid)
+			ctx.Locals("pid", pid)
 			return ctx.Next()
 		},
 	})

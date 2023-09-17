@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/golang-jwt/jwt/v4"
 	"time"
 )
@@ -36,4 +38,18 @@ func ValidateToken(encodedToken string) (string, error) {
 	} else {
 		return "", errors.New("invalid claims")
 	}
+}
+
+func GenerateRandomString(length int) (string, error) {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	randomBytes := make([]byte, length)
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		log.Error("Error generating random string: %v\n", err)
+		return "", err
+	}
+	for i := 0; i < length; i++ {
+		randomBytes[i] = charset[int(randomBytes[i])%len(charset)]
+	}
+	return string(randomBytes), nil
 }

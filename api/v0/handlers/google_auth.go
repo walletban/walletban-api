@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
@@ -20,6 +21,10 @@ import (
 
 var (
 	state = "holderState"
+)
+
+const (
+	oauthErr = "oauth error"
 )
 
 type googleAuthResponse struct {
@@ -43,15 +48,28 @@ func oAuthGoogleConfig() *oauth2.Config {
 	}
 }
 
-func GoogleLogin() fiber.Handler {
+func GoogleLogin(service services.ApplicationService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		redirect := c.Query("redirect", utils.RedirectUrl)
-		fmt.Println(redirect)
-		tempState, err := utils.GenerateOauthHash(redirect)
+		clientID := c.Query("clientId", "")
+		clientSecret := c.Query("clientSecret", "")
+		if clientID == "" || clientSecret == "" {
+			return handleError(c, errors.New("invalid client id/secret"), "Invalid Client ID/Secret")
+		}
+		if clientID != utils.OauthBypass {
+			proj := entities.Project{ClientSecret: clientSecret, ClientId: clientID}
+			res, err := service.ProjectRepository.FindOne(c.Context(), proj)
+			if err != nil {
+				return handleError(c, err, "Client ID/Secret not found")
+			}
+			if res == nil {
+				return handleError(c, errors.New("invalid client id/secret"), "Client ID/Secret not found")
+			}
+		}
+		tempState, err := utils.GenerateOauthHash(redirect + ";" + clientID + ";" + clientSecret)
 		state = tempState
 		if err != nil {
-			fmt.Println(err)
-			return c.SendString("Some error has occurred.")
+			return handleError(c, err, "unknown error has occurred")
 		}
 		url := oAuthGoogleConfig().AuthCodeURL(state)
 		return c.Redirect(url, http.StatusTemporaryRedirect)
@@ -60,7 +78,11 @@ func GoogleLogin() fiber.Handler {
 
 func GoogleCallback(service services.ApplicationService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		url, err := utils.ValidateToken(c.FormValue("state", ""))
+		redirectData, err := utils.ValidateToken(c.FormValue("state", ""))
+		splitRedirectData := strings.Split(redirectData, ";")
+		url := splitRedirectData[0]
+		clientId := splitRedirectData[1]
+		clientSecret := splitRedirectData[2]
 		log.Info(fmt.Sprintf("Requested for URL redirect at: %s", url))
 		if err != nil {
 			return c.Redirect(utils.FrontendUrl, http.StatusTemporaryRedirect)
@@ -84,28 +106,75 @@ func GoogleCallback(service services.ApplicationService) fiber.Handler {
 			c.Status(http.StatusInternalServerError)
 			return c.JSON(presenter.Failure(err))
 		}
-		var userData = entities.User{
-			Name:     googleResponse.GivenName + " " + googleResponse.FamilyName,
-			Username: strings.Split(googleResponse.Email, "@")[0],
-			PfpUrl:   googleResponse.Picture,
-			Email:    googleResponse.Email,
+		// Check if user login or consumer login
+		if clientId == utils.OauthBypass {
+			return userLogin(c, service, googleResponse, url)
+		} else {
+			// Consumer Login
+			return consumerLogin(c, service, googleResponse, url, clientSecret, clientId)
 		}
-		userInsertion, err := service.UserRepository.Create(c.Context(), userData)
+	}
+}
+
+func consumerLogin(c *fiber.Ctx, service services.ApplicationService, googleResponse googleAuthResponse, url string, clientSecret string, clientId string) error {
+	proj := entities.Project{ClientSecret: clientSecret, ClientId: clientId}
+	projData, err := service.ProjectRepository.FindOne(c.Context(), proj)
+	if err != nil {
+		return handleError(c, err, "Client ID/Secret not found")
+	}
+	consumer := entities.Consumer{
+		ProjectID:           projData.ID,
+		Name:                googleResponse.GivenName + " " + googleResponse.FamilyName,
+		Email:               googleResponse.Email,
+		WalletGKey:          "",
+		WalletEncryptedSKey: "",
+	}
+	res, err := service.ConsumerRepository.Create(c.Context(), consumer)
+	if err != nil {
+		return handleError(c, err, "unable to create consumer")
+	}
+	unique := url + "?token=" + strconv.Itoa(int(res.ID)) + "&first=" + strconv.FormatBool(res.IsFirstTime) + "&isActivated=" + strconv.FormatBool(res.IsWalletActivated)
+	return c.Redirect(unique, http.StatusTemporaryRedirect)
+}
+
+func userLogin(c *fiber.Ctx, service services.ApplicationService, googleResponse googleAuthResponse, url string) error {
+	var userData = entities.User{
+		Name:     googleResponse.GivenName + " " + googleResponse.FamilyName,
+		Username: strings.Split(googleResponse.Email, "@")[0],
+		PfpUrl:   googleResponse.Picture,
+		Email:    googleResponse.Email,
+	}
+	userInsertion, err := service.UserRepository.Create(c.Context(), userData)
+	if err != nil {
+		var registeredUser entities.User
+		registeredUser.Username = userData.Username
+		userInsertion, err := service.UserRepository.FindOne(c.Context(), registeredUser)
 		if err != nil {
-			var registeredUser entities.User
-			registeredUser.Username = userData.Username
-			userInsertion, err := service.UserRepository.FindOne(c.Context(), registeredUser)
+			fmt.Println(err)
+			c.Status(http.StatusInternalServerError)
+			return c.JSON(presenter.Failure(err))
+		}
+		if userInsertion.Project.ID <= uint(0) {
+			id, err := CreateProject(c.Context(), service, userInsertion.Name, userInsertion.ID)
 			if err != nil {
 				fmt.Println(err)
 				c.Status(http.StatusInternalServerError)
 				return c.JSON(presenter.Failure(err))
 			}
-			jwtToken := userInsertion.GetSignedJWT()
-			unique := url + "?token=" + jwtToken + "&first=" + strconv.FormatBool(userInsertion.IsFirstTime)
-			return c.Redirect(unique, http.StatusTemporaryRedirect)
+			userInsertion.Project.ID = id
 		}
 		jwtToken := userInsertion.GetSignedJWT()
 		unique := url + "?token=" + jwtToken + "&first=" + strconv.FormatBool(userInsertion.IsFirstTime)
 		return c.Redirect(unique, http.StatusTemporaryRedirect)
 	}
+	id, err := CreateProject(c.Context(), service, userInsertion.Name, userInsertion.ID)
+	if err != nil {
+		fmt.Println(err)
+		c.Status(http.StatusInternalServerError)
+		return c.JSON(presenter.Failure(err))
+	}
+	userInsertion.Project.ID = id
+	jwtToken := userInsertion.GetSignedJWT()
+	unique := url + "?token=" + jwtToken + "&first=" + strconv.FormatBool(userInsertion.IsFirstTime)
+	return c.Redirect(unique, http.StatusTemporaryRedirect)
 }

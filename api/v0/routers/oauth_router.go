@@ -7,6 +7,6 @@ import (
 )
 
 func OAuthRouter(app fiber.Router, applicationService services.ApplicationService) {
-	app.Get("/auth/google/login", handlers.GoogleLogin())
+	app.Get("/auth/google/login", handlers.GoogleLogin(applicationService))
 	app.Get("/auth/google/callback", handlers.GoogleCallback(applicationService))
 }
