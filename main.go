@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"walletban-api/api/v0/routers"
 	"walletban-api/internal/entities"
 	"walletban-api/internal/repositories"
 	"walletban-api/internal/services"
@@ -18,7 +19,7 @@ func main() {
 	userRepo := repositories.NewUserRepository(db)
 	projectRepo := repositories.NewProjectRepository(db)
 	consumerRepo := repositories.NewConsumerRepository(db)
-	_ = services.NewService(db, userRepo, projectRepo, consumerRepo)
+	applicationService := services.NewService(db, userRepo, projectRepo, consumerRepo)
 	app := fiber.New()
 	app.Use(cors.New())
 	app.Use(logger.New())
@@ -31,6 +32,7 @@ func main() {
 				"com/DarthBenro008/walletban",
 		})
 	})
+	routers.OAuthRouter(app, applicationService)
 	app.Listen(":8000")
 }
 

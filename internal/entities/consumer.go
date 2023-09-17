@@ -7,6 +7,7 @@ type Consumer struct {
 	ProjectID           uint
 	Name                string
 	Email               string
+	IsFirstTime         bool
 	IsWalletActivated   bool
 	WalletGKey          string
 	WalletEncryptedSKey string

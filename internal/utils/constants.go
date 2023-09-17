@@ -9,4 +9,5 @@ var (
 	DBName      = "walletban"
 	JwtSecret   = os.Getenv("JWT_SECRET")
 	RedirectUrl = os.Getenv("REDIRECT_URL")
+	FrontendUrl = "https://walletban.xyz"
 )
