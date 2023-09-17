@@ -8,11 +8,17 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"walletban-api/internal/entities"
+	"walletban-api/internal/repositories"
+	"walletban-api/internal/services"
 	"walletban-api/internal/utils"
 )
 
 func main() {
-	_ = connectToDb()
+	db := connectToDb()
+	userRepo := repositories.NewUserRepository(db)
+	projectRepo := repositories.NewProjectRepository(db)
+	consumerRepo := repositories.NewConsumerRepository(db)
+	_ = services.NewService(db, userRepo, projectRepo, consumerRepo)
 	app := fiber.New()
 	app.Use(cors.New())
 	app.Use(logger.New())
