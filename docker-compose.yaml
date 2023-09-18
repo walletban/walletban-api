@@ -1,0 +1,25 @@
+version: '3.7'
+services:
+  api:
+    container_name: 'platform-api'
+    build: .
+    ports:
+      - '3000:3000'
+    depends_on:
+      - 'pg'
+    environment:
+      - DB_SERVER=pg
+      - GOOGLE_CLIENT_ID=
+      - GOOGLE_CLIENT_SECRET=
+      - DB_USER=obcroot
+      - DB_PASSWORD=toorobc
+      - JWT_SECRET=coolboi69123@!obcroxxx
+  pg:
+    image: 'postgres:latest'
+    container_name: 'postgres'
+    ports:
+      - '5432:5432'
+    environment:
+      - POSTGRES_USER=obcroot
+      - POSTGRES_PASSWORD=toorobc
+      - POSTGRES_DB=obc
