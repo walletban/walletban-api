@@ -9,6 +9,8 @@ type Consumer struct {
 	Email               string
 	IsFirstTime         bool `gorm:"default:true"`
 	IsWalletActivated   bool `gorm:"default:false"`
+	PfpUrl              string
 	WalletGKey          string
 	WalletEncryptedSKey string
+	Token               string
 }

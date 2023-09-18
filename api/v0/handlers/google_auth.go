@@ -128,6 +128,7 @@ func consumerLogin(c *fiber.Ctx, service services.ApplicationService, googleResp
 		Email:               googleResponse.Email,
 		WalletGKey:          "",
 		WalletEncryptedSKey: "",
+		PfpUrl:              googleResponse.Picture,
 	}
 	res, err := service.ConsumerRepository.Create(c.Context(), consumer)
 	if err != nil {

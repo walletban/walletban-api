@@ -1,11 +1,15 @@
 package utils
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/gofiber/fiber/v2/log"
 	"github.com/golang-jwt/jwt/v4"
+	"io/ioutil"
+	"net/http"
 	"time"
 )
 
@@ -52,4 +56,39 @@ func GenerateRandomString(length int) (string, error) {
 		randomBytes[i] = charset[int(randomBytes[i])%len(charset)]
 	}
 	return string(randomBytes), nil
+}
+
+func MakePOSTRequest(url string, data []byte) (map[string]interface{}, error) {
+
+	// Create a new HTTP client
+	client := &http.Client{}
+
+	// Create a new POST request with the JSON payload
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Send the request and get the response
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal the response body into a map
+	var responseMap map[string]interface{}
+	err = json.Unmarshal(body, &responseMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return responseMap, nil
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"walletban-api/api/v0/middlewares"
 	"walletban-api/api/v0/routers"
 	"walletban-api/internal/entities"
 	"walletban-api/internal/repositories"
@@ -33,6 +34,10 @@ func main() {
 		})
 	})
 	routers.OAuthRouter(app, applicationService)
+	version := app.Group("/v0")
+	routers.ConsumerRouter(version, applicationService)
+	app.Use(middlewares.JwtMiddleware())
+	routers.DashboardRouter(version, applicationService)
 	app.Listen(":8000")
 }
 
